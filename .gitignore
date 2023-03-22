@@ -10,3 +10,5 @@
 .vs/Operating-Systems-4029/FileContentIndex/read.lock
 .vs/Operating-Systems-4029/v17/.wsuo
 .vs/Operating-Systems-4029/v17/Browse.VC.db
+.vscode/tasks.json
+*.exe
