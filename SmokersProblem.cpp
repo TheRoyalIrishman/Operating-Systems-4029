@@ -1,48 +1,109 @@
 #include <iostream>
 #include <thread>
 #include <mutex>
-#include <chrono>
-#include <iostream>
-#include <semaphore.h>
 
 using namespace std;
 
-sem_t tobaccoSemaphore, paperSemaphore, matchesSemaphore, tableSemaphore;
 
+// declare the mutex and flags for ingredients
+mutex mtx;
+bool paper = false;
+bool tobacco = false;
+bool matches = false;
+
+// function for agent process
 void agentFunction() {
     while (true) {
-        sem_wait(&tableSemaphore);
-
-        int randValue = rand() % 3; // possible values are 0, 1, 2
-
-        if (randValue == 0) {
-            sem_post(&tobaccoSemaphore);
-            sem_post(&paperSemaphore);
-            cout << "Agent put tobacco and paper on the table.\n";
-        } else if (randValue == 1) {
-            sem_post(&tobaccoSemaphore);
-            sem_post(&matchesSemaphore);
-            cout << "Agent put tobacco and matches on the table.\n";
+        mtx.lock();
+        // put out two random ingredients
+        int randNum = rand() % 3;
+        if (randNum == 0) {
+            paper = true;
+            tobacco = true;
+        } else if (randNum == 1) {
+            paper = true;
+            matches = true;
         } else {
-            sem_post(&paperSemaphore);
-            sem_post(&matchesSemaphore);
-            cout << "Agent put paper and matches on the table.\n";
+            tobacco = true;
+            matches = true;
         }
-    }
-}
-
-void tobbacoFunction() {
-    while (true) {
-        sem_wait(&tobaccoSemaphore);
-        sem_wait(&tableSemaphore);
-        cout << "Smoker with tobacco got paper and matches from the table and is now smoking.\n";
-
+        cout << "Agent: puts out ";
+        if (paper) {
+            cout << "paper, ";
+        }
+        if (tobacco) {
+            cout << "tobacco, ";
+        }
+        if (matches) {
+            cout << "matches, ";
+        }
+        cout << endl;
+        mtx.unlock();
+        // wait for smoker to finish smoking
         this_thread::sleep_for(chrono::milliseconds(1000));
     }
 }
 
+// function for smoker with paper
+void paperFunction() {
+    while (true) {
+        mtx.lock();
+        if (tobacco && matches) {
+            cout << "Smoker with paper: rolls and smokes a cigarette." << endl;
+            tobacco = false;
+            matches = false;
+            // signal agent
+            mtx.unlock();
+            break;
+        }
+        mtx.unlock();
+    }
+}
+
+// function for smoker with tobacco
+void tobaccoFunction() {
+    while (true) {
+        mtx.lock();
+        if (paper && matches) {
+            cout << "Smoker with tobacco: rolls and smokes a cigarette." << endl;
+            paper = false;
+            matches = false;
+            // signal agent
+            mtx.unlock();
+            break;
+        }
+        mtx.unlock();
+    }
+}
+
+// function for smoker with matches
+void matchesFunction() {
+    while (true) {
+        mtx.lock();
+        if (paper && tobacco) {
+            cout << "Smoker with matches: rolls and smokes a cigarette." << endl;
+            paper = false;
+            tobacco = false;
+            // signal agent
+            mtx.unlock();
+            break;
+        }
+        mtx.unlock();
+    }
+}
+
 int main() {
-    cout << "hi I am Cam" << endl;
+    // create threads for agent and smokers
+    thread agentThread(agentFunction);
+    thread paperThread(paperFunction);
+    thread tobaccoThread(tobaccoFunction);
+    thread matchesThread(matchesFunction);
+
+    // join threads
+    agentThread.join();
+    paperThread.join();
+    tobaccoThread.join();
+    matchesThread.join();
 
     return 0;
 }
