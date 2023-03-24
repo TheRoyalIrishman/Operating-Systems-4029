@@ -12,3 +12,5 @@
 .vs/Operating-Systems-4029/v17/Browse.VC.db
 .vscode/tasks.json
 *.exe
+.vs
+*.out
