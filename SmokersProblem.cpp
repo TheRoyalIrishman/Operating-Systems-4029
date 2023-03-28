@@ -1,109 +1,121 @@
 #include <iostream>
-#include <thread>
-#include <mutex>
+#include <pthread.h>
+#include <semaphore.h>
+#include <string>
+#include <errno.h>
+#include <time.h>
+#include "clock.h"
 
-using namespace std;
+int streetCustomers; // in main function, be sure to make this a cin
+int numChairs; // in main function, be sure to make this a cin
+int secondsToWait; // in main function, be sure to make this a cin
 
+sem_t waitingCustomersSemaphore;
+sem_t waitingBarbersSemaphore;
+pthread_mutex_t pMutex;
+sem_t servedCustomersSemaphore;
+sem_t workingBarbersSemaphore;
 
-// declare the mutex and flags for ingredients
-mutex mtx;
-bool paper = false;
-bool tobacco = false;
-bool matches = false;
+struct timespec m_timespec;
 
-// function for agent process
-void agentFunction() {
-    while (true) {
-        mtx.lock();
-        // put out two random ingredients
-        int randNum = rand() % 3;
-        if (randNum == 0) {
-            paper = true;
-            tobacco = true;
-        } else if (randNum == 1) {
-            paper = true;
-            matches = true;
-        } else {
-            tobacco = true;
-            matches = true;
-        }
-        cout << "Agent: puts out ";
-        if (paper) {
-            cout << "paper, ";
-        }
-        if (tobacco) {
-            cout << "tobacco, ";
-        }
-        if (matches) {
-            cout << "matches, ";
-        }
-        cout << endl;
-        mtx.unlock();
-        // wait for smoker to finish smoking
-        this_thread::sleep_for(chrono::milliseconds(1000));
+int numWaitingCustomers = 0;
+
+void cutCustomerHair() {
+    cout << "Currently cutting hair....";
+
+    auto currentTime = 0;
+
+    while (currentTime < 50) {
+        currentTime += clockFunction();
     }
+
+    sem_post(&servedCustomersSemaphore);
 }
 
-// function for smoker with paper
-void paperFunction() {
-    while (true) {
-        mtx.lock();
-        if (tobacco && matches) {
-            cout << "Smoker with paper: rolls and smokes a cigarette." << endl;
-            tobacco = false;
-            matches = false;
-            // signal agent
-            mtx.unlock();
+void * barberFunction(void * args) {
+    while (errno != EAGAIN) {
+        clock_gettime(CLOCK_REALTIME, &m_timespec);
+
+        m_timespec.tv_sec += secondsToWait;
+
+        cout << "Waiting for customers..." << endl;
+
+        int waitedTooLong = sem_timedwait(&waitingCustomersSemaphore, &m_timespec);
+
+        if (waitedTooLong == -1) {
+            cout << "Barber slept too long, and the customer left" << endl;
             break;
         }
-        mtx.unlock();
+
+        pthread_mutex_lock(&pMutex);
+
+        cout << "# waiting customers: " << numWaitingCustomers << endl;
+
+        numWaitingCustomers--;
+
+        sem_post(&waitingBarbersSemaphore);
+
+        pthread_mutex_unlock(&pMutex);
+
+        cutCustomerHair();
+
+        sem_wait(&workingBarbersSemaphore);
+
+        if (numWaitingCustomers < 1) {
+            cout << "Barber going to sleep";
+        }
     }
+
+    return NULL;
 }
 
-// function for smoker with tobacco
-void tobaccoFunction() {
-    while (true) {
-        mtx.lock();
-        if (paper && matches) {
-            cout << "Smoker with tobacco: rolls and smokes a cigarette." << endl;
-            paper = false;
-            matches = false;
-            // signal agent
-            mtx.unlock();
-            break;
-        }
-        mtx.unlock();
+void * customerFunction(void * args) {
+    pthread_mutex_lock(&pMutex);
+
+    cout << "Customer enters barbershop...." << endl;
+
+    if (numWaitingCustomers < numChairs) {
+        cout << "Customer finds a chair" << endl;
+
+        numWaitingCustomers++;
+
+        sem_post(&waitingCustomersSemaphore);
+
+        pthread_mutex_unlock(&pMutex);
+
+        sem_wait(&waitingBarbersSemaphore);
+        sem_wait(&servedCustomersSemaphore);
+
+        cout << "Customer's hair was cut...." << endl;
+
+        sem_post(&workingBarbersSemaphore);
+    } else {
+        cout << "Customer leaves the shop...." << endl;
+        pthread_mutex_unlock(&pMutex);
     }
+
+    return NULL;
 }
 
-// function for smoker with matches
-void matchesFunction() {
-    while (true) {
-        mtx.lock();
-        if (paper && tobacco) {
-            cout << "Smoker with matches: rolls and smokes a cigarette." << endl;
-            paper = false;
-            tobacco = false;
-            // signal agent
-            mtx.unlock();
-            break;
-        }
-        mtx.unlock();
+void createCustomers(int numCustomers) {
+    pthread_t customers[numCustomers];
+
+    for (int i = 0; i < numCustomers; i++) {
+        pthread_create(&customers[i], NULL, customerFunction, NULL);
+    }
+
+    for (int j = 0; j < numCustomers; j++) {
+        pthread_join(customers[j], NULL);
     }
 }
 
 int main() {
-    // create threads for agent and smokers
-    thread agentThread(agentFunction);
-    thread paperThread(paperFunction);
-    thread tobaccoThread(tobaccoFunction);
-    thread matchesThread(matchesFunction);
-
-    // join threads
-    agentThread.join();
-    paperThread.join();
-    tobaccoThread.join();
-    matchesThread.join();
+    cout << "Enter number of customers from the street: ";
+    cin >> streetCustomers;
+    cout << "Enter number of chairs in shop: ";
+    cin >> numChairs;
+    cout << "Enter expected wait time: ";
+    cin >> secondsToWait;
 
     return 0;
 }
