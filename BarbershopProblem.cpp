@@ -1,131 +1,197 @@
-#include <iostream>
 #include <pthread.h>
-#include <semaphore.h>
+#include <iostream>
+#include <chrono>
 #include <string>
-#include <errno.h>
-#include <time.h>
+#include <vector>
+#include <semaphore.h>
 #include "clock.h"
 
-int streetCustomers; // in main function, be sure to make this a cin
-int numChairs; // in main function, be sure to make this a cin
-int secondsToWait; // in main function, be sure to make this a cin
+// constants for how many chairs and customers
 
-sem_t waitingCustomersSemaphore;
-sem_t waitingBarbersSemaphore;
-pthread_mutex_t pMutex;
-sem_t servedCustomersSemaphore;
-sem_t workingBarbersSemaphore;
+#define numChairs 10
+#define numCustomers 12
 
-struct timespec m_timespec;
+// how we init a mutex
 
-int numWaitingCustomers = 0;
+pthread_mutex_t taChairsMutex = PTHREAD_MUTEX_INITIALIZER;
 
-void cutCustomerHair() {
-    cout << "Currently cutting hair....";
+// containers for barber chairs
 
-    auto currentTime = 0;
+vector<bool> takenTAChairs = {false};
+vector<bool> emptyTAChairs = {false};
 
-    while (currentTime < 50) {
-        currentTime += clockFunction();
+// flag for when to move on to next customer
+
+bool stopOfficeHours = false;
+
+// semaphores to actually deal with threading
+
+sem_t customersWaiting[numChairs];
+sem_t taSemaphore;
+
+// processes the barber actually cutting hair
+
+void * taFunction(void * args) {
+    bool hasACustomer = true;
+
+    while (true) {
+        pthread_mutex_lock(&taChairsMutex);
+
+        for (int i = 0; i < numChairs; i++) {
+            if (takenTAChairs.at(i) && emptyTAChairs.at(i)) {
+                pthread_mutex_unlock(&taChairsMutex);
+
+                cout << "Barber started to cut customer number " << i << "'s hair" << endl;
+
+                // this function lies in a header file that deals with clock sync
+
+                clockDelayFunction(15);
+
+                emptyTAChairs.at(i) = true;
+
+                sem_post(&(customersWaiting[i]));
+
+                cout << "Barber finished cutting customer number " << i << "'s hair" << endl;
+
+                pthread_mutex_lock(&taChairsMutex);
+            }
+        }
+
+        pthread_mutex_unlock(&taChairsMutex);
+
+        hasACustomer = false;
+
+        pthread_mutex_lock(&taChairsMutex);
+
+        for (int i = 0; i < numChairs; i++) {
+            if (takenTAChairs.at(i)) {
+                hasACustomer = true;
+                break;
+            }
+        }
+
+        if (stopOfficeHours == true) {
+            return nullptr;
+        }
+
+        // checks for if the barber doesn't have any hair to cut
+
+        if (hasACustomer == false) {
+            cout << "Barber fell asleep" << endl;
+
+            pthread_mutex_unlock(&taChairsMutex);
+
+            sem_wait(&taSemaphore);
+            
+            pthread_mutex_lock(&taChairsMutex);
+
+            cout << "Barber woke up" << endl;
+        }
+
+        pthread_mutex_unlock(&taChairsMutex);
     }
-
-    sem_post(&servedCustomersSemaphore);
 }
 
-void * barberFunction(void * args) {
-    cout << "Waiting for customers..." << endl;
+void * studentFunction(void * args) {
+    cout << "Customer entered store" << endl;
 
-    int waitedTooLong = sem_timedwait(&waitingCustomersSemaphore, &m_timespec);
+    int chairNumber = numChairs;
 
-    if (waitedTooLong == -1) {
-        cout << "Barber slept too long, and the customer left" << endl;
+    pthread_mutex_lock(&taChairsMutex);
+
+    bool hasACustomer = false;
+
+    // alerts barber that they have a customer
+
+    for (int i = 0; i < numChairs; i++) {
+        if (takenTAChairs.at(i)) {
+            hasACustomer = true;
+            break;
+        }
     }
 
-    pthread_mutex_lock(&pMutex);
+    for (int i = 0; i < numChairs; i++) {
+        if (!takenTAChairs.at(i)) {
+            chairNumber = i;
 
-    cout << "# waiting customers: " << numWaitingCustomers << endl;
+            takenTAChairs.at(i) = true;
 
-    numWaitingCustomers--;
+            if (!hasACustomer) {
+                sem_post(&taSemaphore);
+            }
 
-    sem_post(&waitingBarbersSemaphore);
-
-    pthread_mutex_unlock(&pMutex);
-
-    cutCustomerHair();
-
-    sem_wait(&workingBarbersSemaphore);
-
-    if (numWaitingCustomers < 1) {
-        cout << "Barber going to sleep";
+            break;
+        }
     }
 
-    return NULL;
-}
+    pthread_mutex_unlock(&taChairsMutex);
 
-void * customerFunction(void * args) {
-    pthread_mutex_lock(&pMutex);
-
-    cout << "Customer enters barbershop...." << endl;
-
-    if (numWaitingCustomers < numChairs) {
-        cout << "Customer finds a chair" << endl;
-
-        numWaitingCustomers++;
-
-        sem_post(&waitingCustomersSemaphore);
-
-        pthread_mutex_unlock(&pMutex);
-
-        sem_wait(&waitingBarbersSemaphore);
-        sem_wait(&servedCustomersSemaphore);
-
-        cout << "Customer's hair was cut...." << endl;
-
-        sem_post(&workingBarbersSemaphore);
-    } else {
-        cout << "Customer leaves the shop...." << endl;
-        pthread_mutex_unlock(&pMutex);
+    if (chairNumber == numChairs) {
+        cout << "No seats open - customer left store" << endl;
+        return nullptr;
     }
 
-    return NULL;
-}
+    cout << "Customer sat down in chair number " << chairNumber << endl;
 
-void createCustomers(int numCustomers) {
-    pthread_t customers[numCustomers];
+    pthread_mutex_lock(&taChairsMutex);
 
-    for (int i = 0; i < numCustomers; i++) {
-        pthread_create(&customers[i], NULL, customerFunction, NULL);
+    while (!emptyTAChairs.at(chairNumber)) {
+        pthread_mutex_unlock(&taChairsMutex);
+        sem_wait(&(customersWaiting[chairNumber]));
+        pthread_mutex_lock(&taChairsMutex);
     }
 
-    for (int j = 0; j < numCustomers; j++) {
-        pthread_join(customers[j], NULL);
-    }
+    takenTAChairs.at(chairNumber) = false;
+    emptyTAChairs.at(chairNumber) = false;
+
+    cout << "Customer in chair number " << chairNumber << " left the shop" << endl;
+
+    pthread_mutex_unlock(&taChairsMutex);
+
+    return nullptr;
 }
 
 int main() {
-    cout << "Enter number of customers from the street: ";
-    cin >> streetCustomers;
-    cout << "Enter number of chairs in shop: ";
-    cin >> numChairs;
-    cout << "Enter expected wait time: ";
-    cin >> secondsToWait;
+    for (int i = 0; i < numChairs; i++) {
+        sem_init(&(customersWaiting[i]), 0, 0);
+    }
 
-    pthread_t barber_thread;
-    pthread_t customer1;
-    pthread_t customer2;
-    pthread_t customer3;
-    pthread_t customer4;
-    sem_init(&waitingCustomersSemaphore, 0, 0);
-    sem_init(&waitingBarbersSemaphore, 0, 0);
-    sem_init(&servedCustomersSemaphore, 0, 0);
-    sem_init(&workingBarbersSemaphore, 0, 0);
+    sem_init(&taSemaphore, 0, 0);
 
-    cout << "The number of chairs is: "  << numChairs << endl;
-    cout << "The number of customers that will come in is: "  << streetCustomers << endl << endl;
+    // threads to handle process
 
-    pthread_create(&barber_thread, NULL, barberFunction, NULL);
-    createCustomers(streetCustomers);
-    pthread_join(barber_thread, NULL);
+    pthread_t barberThread;
+
+    pthread_t customerThreadsArray[numCustomers];
+
+    pthread_create(&barberThread, NULL, taFunction, NULL);
+
+
+    for (int i = 0; i < numChairs; i++) {
+        clockDelayFunction(8);
+
+        pthread_create(&(customerThreadsArray[i]), NULL, studentFunction, NULL);
+    }
+
+    for (int i = 0; i < numCustomers; i++) {
+        pthread_join((customerThreadsArray[i]), NULL);
+    }
+
+    pthread_mutex_lock(&taChairsMutex);
+
+    stopOfficeHours = true;
+
+    sem_post(&taSemaphore);
+
+    pthread_mutex_unlock(&taChairsMutex);
+
+    pthread_join(barberThread, NULL);
+
+    for (int i = 0; i < numChairs; i++) {
+        sem_destroy(&(customersWaiting[i]));
+    }
+
+    sem_destroy(&taSemaphore);
 
     return 0;
 }

@@ -1,136 +1,84 @@
-#include <semaphore.h>
-#include <iostream>
-#include <pthread.h>
-
+#include<semaphore.h>
+#include<stdio.h>
+#include<pthread.h>
+# include<bits/stdc++.h>
 using namespace std;
 
-class monitor {
-    private:
-        int readerCount;
-        int writerCount;
-        int waitingReaders;
-        int waitingWriters;
+void *reader(void *);
+void *writer(void *);
 
-        pthread_cond_t canRead;
-        pthread_cond_t canWrite;
+int readcount=0,writecount=0,sh_var=5,bsize[5];
+sem_t x,y,z,rsem,wsem;
+pthread_t r[3],w[2];
 
-        pthread_mutex_t conditionalLock;
+void *reader(void *i)
+{
+        cout << "\n-------------------------";
+        cout << "\n\n reader-" << i << " is reading";
 
-    public:
-        monitor() {
-            readerCount = 0;
-            writerCount = 0;
-            waitingReaders = 0;
-            waitingWriters = 0;
-
-            pthread_cond_init(&canRead, NULL);
-            pthread_cond_init(&canWrite, NULL);
-            pthread_mutex_init(&conditionalLock, NULL);
+        sem_wait(&z);
+        sem_wait(&rsem);
+        sem_wait(&x);
+        readcount++;
+        if(readcount==1) {
+            sem_wait(&wsem);
         }
-
-        void startRead(int i) {
-            pthread_mutex_lock(&conditionalLock);
-
-            if (writerCount == 1 || waitingWriters > 0) {
-                waitingReaders++;
-
-                pthread_cond_wait(&canRead, &conditionalLock);
-                waitingReaders--;
-            }
-
-            readerCount++;
-
-            cout << "Reader " << i << " is reading\n";
-            pthread_mutex_unlock(&conditionalLock);
-            pthread_cond_broadcast(&canRead);
+        sem_post(&x);
+        sem_post(&rsem);
+        sem_post(&z);
+        cout << "\nupdated value: " << sh_var;
+        sem_wait(&x);
+        readcount--;
+        if(readcount==0) {
+            sem_post(&wsem);
         }
-
-        void stopRead(int i) {
-            pthread_mutex_lock(&conditionalLock);
-
-            if (--readerCount == 0) {
-                pthread_cond_signal(&canWrite);
-            }
-
-            pthread_mutex_unlock(&conditionalLock);
-        }
-
-        void startWrite(int i) {
-            pthread_mutex_lock(&conditionalLock);
-
-            if (writerCount == 1 || readerCount > 0) {
-                ++waitingWriters;
-                pthread_cond_wait(&canWrite, &conditionalLock);
-                --waitingReaders;
-            }
-
-            writerCount = 1;
-
-            cout << "Writer " << i << " is writing \n";
-        }
-
-        void stopWrite(int i) {
-            pthread_mutex_lock(&conditionalLock);
-
-            writerCount = 0;
-
-            if (waitingReaders > 0) {
-                pthread_cond_signal(&canRead);
-            } else {
-                pthread_cond_signal(&canWrite);
-            }
-        }
-} Monitor;
-
-
-void * reader(void * id) {
-    int c = 0;
-
-    int i = *(int*) id;
-
-    while (c < 5) {
-        // find sleep function and call it here
-        Monitor.startRead(i);
-        Monitor.stopRead(i);
-        c++;
-    }
+        sem_post(&x);
 }
 
-void * writer(void * id) {
-    int c = 0;
-    
-    int i = *(int*) id;
+void *writer(void *i)
+{
+        cout << "\n\n writer-" << i << " is writing";
+        sem_wait(&y);
+        writecount++;
+        if(writecount==1) {
+            sem_wait(&rsem);
+        }
+        sem_post(&y);
+        sem_wait(&wsem);
 
-    while (c < 5) {
-        // find sleep function and call it here
-        Monitor.startWrite(i);
-        Monitor.stopWrite(i);
-        c++;
-    }
+        sh_var=sh_var+5;
+        sem_post(&wsem);
+        sem_wait(&y);
+        writecount--;
+        if(writecount==0) {
+            sem_post(&rsem);
+        }
+        sem_post(&y);
 }
 
-int main() {
+int main()
+{
+        sem_init(&x,0,1);
+        sem_init(&wsem,0,1);
+        sem_init(&y,0,1);
+        sem_init(&z,0,1);
+        sem_init(&rsem,0,1);
+        
+        pthread_create(&r[0],NULL, reader,(void *)0);
+        pthread_create(&w[0],NULL, writer,(void *)0);
+        pthread_create(&r[1],NULL, reader,(void *)1);
+        pthread_create(&r[2],NULL, reader,(void *)2);
+        pthread_create(&r[3],NULL, reader,(void *)3);
+        pthread_create(&w[1],NULL, writer,(void *)3);
+        pthread_create(&r[4],NULL, reader, (void *)4);
 
-    pthread_t readerArray[5];
-    pthread_t writerArray[5];
+        pthread_join(r[0],NULL);
+        pthread_join(w[0],NULL);
+        pthread_join(r[1],NULL);
+        pthread_join(r[2],NULL);
+        pthread_join(r[3],NULL);
+        pthread_join(w[1],NULL);
+        pthread_join(r[4],NULL);
 
-    int threadID[5];
-
-    for (int i = 0; i < 5; i++) {
-        threadID[i] = i;
-
-        pthread_create(&readerArray[i], NULL, &reader, &threadID[i]);
-
-        pthread_create(&writerArray[i], NULL, &writer, &threadID[i]);
-    }
-
-    for (int i = 0; i < 5; i++) {
-        pthread_join(readerArray[i], NULL);
-    }
-
-    for (int i = 0; i < 5; i++) {
-        pthread_join(writerArray[i], NULL);
-    }
-
-    return 0;
+        return 0;
 }
