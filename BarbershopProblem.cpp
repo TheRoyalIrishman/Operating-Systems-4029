@@ -33,37 +33,30 @@ void cutCustomerHair() {
 }
 
 void * barberFunction(void * args) {
-    while (errno != EAGAIN) {
-        clock_gettime(CLOCK_REALTIME, &m_timespec);
+    cout << "Waiting for customers..." << endl;
 
-        m_timespec.tv_sec += secondsToWait;
+    int waitedTooLong = sem_timedwait(&waitingCustomersSemaphore, &m_timespec);
 
-        cout << "Waiting for customers..." << endl;
+    if (waitedTooLong == -1) {
+        cout << "Barber slept too long, and the customer left" << endl;
+    }
 
-        int waitedTooLong = sem_timedwait(&waitingCustomersSemaphore, &m_timespec);
+    pthread_mutex_lock(&pMutex);
 
-        if (waitedTooLong == -1) {
-            cout << "Barber slept too long, and the customer left" << endl;
-            break;
-        }
+    cout << "# waiting customers: " << numWaitingCustomers << endl;
 
-        pthread_mutex_lock(&pMutex);
+    numWaitingCustomers--;
 
-        cout << "# waiting customers: " << numWaitingCustomers << endl;
+    sem_post(&waitingBarbersSemaphore);
 
-        numWaitingCustomers--;
+    pthread_mutex_unlock(&pMutex);
 
-        sem_post(&waitingBarbersSemaphore);
+    cutCustomerHair();
 
-        pthread_mutex_unlock(&pMutex);
+    sem_wait(&workingBarbersSemaphore);
 
-        cutCustomerHair();
-
-        sem_wait(&workingBarbersSemaphore);
-
-        if (numWaitingCustomers < 1) {
-            cout << "Barber going to sleep";
-        }
+    if (numWaitingCustomers < 1) {
+        cout << "Barber going to sleep";
     }
 
     return NULL;
@@ -116,6 +109,23 @@ int main() {
     cin >> numChairs;
     cout << "Enter expected wait time: ";
     cin >> secondsToWait;
+
+    pthread_t barber_thread;
+    pthread_t customer1;
+    pthread_t customer2;
+    pthread_t customer3;
+    pthread_t customer4;
+    sem_init(&waitingCustomersSemaphore, 0, 0);
+    sem_init(&waitingBarbersSemaphore, 0, 0);
+    sem_init(&servedCustomersSemaphore, 0, 0);
+    sem_init(&workingBarbersSemaphore, 0, 0);
+
+    cout << "The number of chairs is: "  << numChairs << endl;
+    cout << "The number of customers that will come in is: "  << streetCustomers << endl << endl;
+
+    pthread_create(&barber_thread, NULL, barberFunction, NULL);
+    createCustomers(streetCustomers);
+    pthread_join(barber_thread, NULL);
 
     return 0;
 }
