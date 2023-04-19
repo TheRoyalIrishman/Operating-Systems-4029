@@ -2,10 +2,13 @@
 #include <cstdint>
 #include <iostream>
 #include <map>
+#include <array>
 
 using namespace std;
 
-map<uint8_t, int8_t[]> pageTable;
+map<uint8_t, array<int8_t, 256>> pageTable;
+
+void readPageFromFile(uint8_t position);
 
 int main() {
     ifstream inputAddressFile("addresses.txt");
@@ -19,12 +22,14 @@ int main() {
 
         auto pageLocation = pageTable.find(pageNumber);
         if (pageLocation == pageTable.end()) {
-            // TODO: Load in page from BACKING_STORE.bin file
+            readPageFromFile(pageNumber);
+
+            int8_t value = pageTable.at(pageNumber)[pageOffset];
+            cout << addr << ' ' << maskedAddr << ' ' << (int)value << endl;
         } else {
             // already loaded in
             auto page = pageLocation->second;
             int8_t value = page[pageOffset];
-
             cout << addr << ' ' << maskedAddr << ' ' << (int)value << endl;
         }
     }
@@ -41,10 +46,10 @@ void readPageFromFile(uint8_t position) {
     // gets position of item within text file and multiplies by 256 (page size)
     fileStream.seekg(position * 256);
     
-    int8_t page[256];
+    array<int8_t, 256> page;
 
     // read the whole page in
-    fileStream.read((char *) page, sizeof(page));
+    fileStream.read((char *)&page, sizeof(page));
 
     fileStream.close();
 
