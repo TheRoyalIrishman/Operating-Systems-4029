@@ -5,9 +5,10 @@
 
 using namespace std;
 
+map<uint8_t, int8_t[]> pageTable;
+
 int main() {
     ifstream inputAddressFile("addresses.txt");
-    map<uint8_t, int8_t[]> pageTable;
 
     uint32_t addr;
     while (inputAddressFile >> addr) {
@@ -29,4 +30,24 @@ int main() {
     }
 
     return 0;
+}
+
+void readPageFromFile(uint8_t position) {
+    fstream fileStream;
+
+    // opens binary file and should be input and in binary format
+    fileStream.open("BACKING_STORE.bin", ios::in | ios::binary);
+
+    // gets position of item within text file and multiplies by 256 (page size)
+    fileStream.seekg(position * 256);
+    
+    int8_t page[256];
+
+    // read the whole page in
+    fileStream.read((char *) page, sizeof(page));
+
+    fileStream.close();
+
+    // set the page in the page table
+    pageTable.emplace(position, page);
 }
