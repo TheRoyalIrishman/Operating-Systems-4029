@@ -39,7 +39,11 @@ int main() {
                 int8_t value = page[pageOffset];
                 cout << addr << ' ' << maskedAddr << ' ' << (int)value << endl;
                 if (TLB.size() == 16) {
-                    TLB.erase()
+                    TLB.erase(TLB.begin()->first)
+                    TLB.insert({pageNumber, page})
+                }
+                else {
+                    TLB.insert({pageNumber, page})
                 }
             }
     }
