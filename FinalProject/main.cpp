@@ -7,6 +7,7 @@
 using namespace std;
 
 map<uint8_t, array<int8_t, 256>> pageTable;
+map<uint8_t, array<int8_t, 256>> TLB;
 
 void readPageFromFile(uint8_t position);
 
@@ -20,18 +21,27 @@ int main() {
         uint8_t pageNumber = maskedAddr >> 8;
         uint8_t pageOffset = maskedAddr & 0x000000ff;
 
-        auto pageLocation = pageTable.find(pageNumber);
-        if (pageLocation == pageTable.end()) {
-            readPageFromFile(pageNumber);
-
-            int8_t value = pageTable.at(pageNumber)[pageOffset];
-            cout << addr << ' ' << maskedAddr << ' ' << (int)value << endl;
-        } else {
-            // already loaded in
-            auto page = pageLocation->second;
+        if (TLB.find(pageNumber) != TLB.end()){
+            auto page = TLB.find(pageNumber)->second;
             int8_t value = page[pageOffset];
             cout << addr << ' ' << maskedAddr << ' ' << (int)value << endl;
         }
+        else:
+            auto pageLocation = pageTable.find(pageNumber);
+            if (pageLocation == pageTable.end()) {
+                readPageFromFile(pageNumber);
+
+                int8_t value = pageTable.at(pageNumber)[pageOffset];
+                cout << addr << ' ' << maskedAddr << ' ' << (int)value << endl;
+            } else {
+                // already loaded in
+                auto page = pageLocation->second;
+                int8_t value = page[pageOffset];
+                cout << addr << ' ' << maskedAddr << ' ' << (int)value << endl;
+                if (TLB.size() == 16) {
+                    TLB.erase()
+                }
+            }
     }
 
     return 0;
