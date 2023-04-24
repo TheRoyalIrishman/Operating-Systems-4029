@@ -28,7 +28,7 @@ int main() {
             int8_t value = page[pageOffset];
             cout << addr << ' ' << maskedAddr << ' ' << (int)value << endl;
         }
-        else:
+        else {
             auto pageLocation = pageTable.find(pageNumber);
             if (pageLocation == pageTable.end()) {
                 readPageFromFile(pageNumber);
@@ -41,13 +41,14 @@ int main() {
                 int8_t value = page[pageOffset];
                 cout << addr << ' ' << maskedAddr << ' ' << (int)value << endl;
                 if (TLB.size() == 16) {
-                    TLB.erase(TLB.begin()->first)
-                    TLB.insert({pageNumber, page})
+                    TLB.erase(TLB.begin()->first);
+                    TLB.insert({pageNumber, page});
                 }
                 else {
-                    TLB.insert({pageNumber, page})
+                    TLB.insert({pageNumber, page});
                 }
             }
+        }
     }
 
     return 0;
