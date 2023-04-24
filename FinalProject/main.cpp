@@ -11,8 +11,13 @@ map<uint8_t, array<int8_t, 256>> TLB;
 
 void readPageFromFile(uint8_t position);
 
-int main() {
-    ifstream inputAddressFile("addresses.txt");
+int main(int argc, const char** argv) {
+    // Default to addresses.txt if none is given
+    const char* filename = "addresses.txt";
+    if (argc > 1) {
+        filename = argv[1];
+    }
+    ifstream inputAddressFile(filename);
 
     // virtual address
     double pageFaults = 0;
@@ -39,7 +44,8 @@ int main() {
                 pageFaults++;
                 readPageFromFile(pageNumber);
 
-                int8_t value = pageTable.at(pageNumber)[pageOffset];
+                auto page = pageTable.at(pageNumber);
+                int8_t value = page[pageOffset];
                 cout << addr << ' ' << maskedAddr << ' ' << (int)value << endl;
                 if (TLB.size() == 16) {
                     TLB.erase(TLB.begin()->first);
