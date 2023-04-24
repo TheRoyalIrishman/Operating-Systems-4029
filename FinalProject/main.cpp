@@ -48,10 +48,10 @@ int main() {
                 cout << addr << ' ' << maskedAddr << ' ' << (int)value << endl;
                 if (TLB.size() == 16) {
                     TLB.erase(TLB.begin()->first);
-                    TLB.insert({pageNumber, page});
+                    TLB.emplace(pageNumber, page);
                 }
                 else {
-                    TLB.insert({pageNumber, page});
+                    TLB.emplace(pageNumber, page);
                 }
             }
         }
