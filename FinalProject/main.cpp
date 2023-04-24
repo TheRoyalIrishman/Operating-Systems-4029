@@ -14,14 +14,19 @@ void readPageFromFile(uint8_t position);
 int main() {
     ifstream inputAddressFile("addresses.txt");
 
+    double pageFaults = 0;
+    double TLBHits = 0;
+    double addrTotal = 0;
     uint32_t addr;
     while (inputAddressFile >> addr) {
+        addrTotal++;
         uint16_t maskedAddr = addr & 0x0000ffff;
 
         uint8_t pageNumber = maskedAddr >> 8;
         uint8_t pageOffset = maskedAddr & 0x000000ff;
 
         if (TLB.find(pageNumber) != TLB.end()){
+            TLBHits++;
             auto page = TLB.find(pageNumber)->second;
             int8_t value = page[pageOffset];
             cout << addr << ' ' << maskedAddr << ' ' << (int)value << endl;
@@ -29,6 +34,7 @@ int main() {
         else:
             auto pageLocation = pageTable.find(pageNumber);
             if (pageLocation == pageTable.end()) {
+                pageFaults++;
                 readPageFromFile(pageNumber);
 
                 int8_t value = pageTable.at(pageNumber)[pageOffset];
@@ -47,7 +53,8 @@ int main() {
                 }
             }
     }
-
+    cout << 'TLB hit rate: ' << TLBHits/addrTotal << endl;
+    cout << 'Page fault rate: ' << pageFaults/addrTotal << endl;
     return 0;
 }
 
