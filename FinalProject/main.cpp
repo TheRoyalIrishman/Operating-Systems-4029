@@ -56,8 +56,8 @@ int main() {
             }
         }
     }
-    cout << 'TLB hit rate: ' << TLBHits/addrTotal << endl;
-    cout << 'Page fault rate: ' << pageFaults/addrTotal << endl;
+    cout << "TLB hit rate: " << (float)TLBHits/addrTotal << endl;
+    cout << "Page fault rate: " << (float)pageFaults/addrTotal << endl;
     return 0;
 }
 
