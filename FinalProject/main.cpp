@@ -41,6 +41,13 @@ int main() {
 
                 int8_t value = pageTable.at(pageNumber)[pageOffset];
                 cout << addr << ' ' << maskedAddr << ' ' << (int)value << endl;
+                if (TLB.size() == 16) {
+                    TLB.erase(TLB.begin()->first);
+                    TLB.emplace(pageNumber, page);
+                }
+                else {
+                    TLB.emplace(pageNumber, page);
+                }
             } else {
                 // already loaded in
                 auto page = pageLocation->second;
