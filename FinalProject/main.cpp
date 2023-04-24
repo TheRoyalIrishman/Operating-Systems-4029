@@ -13,8 +13,10 @@ void readPageFromFile(uint8_t position);
 int main() {
     ifstream inputAddressFile("addresses.txt");
 
+    // virtual address
     uint32_t addr;
     while (inputAddressFile >> addr) {
+        // physical address
         uint16_t maskedAddr = addr & 0x0000ffff;
 
         uint8_t pageNumber = maskedAddr >> 8;
